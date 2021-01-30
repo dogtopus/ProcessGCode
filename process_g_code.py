@@ -135,6 +135,7 @@ dir_x = 0
 dir_y = 0
 dir_z = 0
 compensate_x, compensate_y, compensate_z = 0, 0, 0
+coffset_x, coffset_y, coffset_z = 0, 0, 0
 peak_x = 0
 peak_y = 0
 peak_z = 0
@@ -267,7 +268,7 @@ def process_G1_movement (line, command_override):
     global delta_x, delta_y, delta_e, delta_z, delta_f,peak_x,peak_y,peak_z, min_x, min_y,last_path_name
     global last_x, last_y, last_e, last_z, last_f, total_e, retracted 
     global args ,endquote,relative_movement,output_relative_movement,output_relative_extrusion,relative_extrusion,total_time
-    global dir_x, dir_y, dir_z, compensate_x, compensate_y, compensate_z
+    global dir_x, dir_y, dir_z, compensate_x, compensate_y, compensate_z, coffset_x, coffset_y, coffset_z
     comment_remover = re.search("^(.*);(.*$)",line)
     comment = ""
     if comment_remover:                                     # grab the old comment, if any
@@ -410,15 +411,23 @@ def process_G1_movement (line, command_override):
     compensate_action = zip(dirs_changed, compensation_with_dir, compensate_params_old)
     compensate_x, compensate_y, compensate_z = (new if dc else old for dc, new, old in compensate_action)
 
+    # update absolute offsets
+    if dirs_changed[0]:
+        coffset_x += compensate_x
+    if dirs_changed[1]:
+        coffset_y += compensate_y
+    if dirs_changed[2]:
+        coffset_z += compensate_z
+
     dir_x, dir_y, dir_z = new_dirs
 
     line = ''
     for dc, comp in zip(dirs_changed, (compensate_x, compensate_y, compensate_z)):
         if dc and comp != 0:
             line += conditional_comment('; movement compensation triggered{}{}{}\n'.format(
-                ' x+={:g}'.format(compensate_x) if dirs_changed[0] and compensate_x != 0 else '',
-                ' y+={:g}'.format(compensate_y) if dirs_changed[1] and compensate_y != 0 else '',
-                ' z+={:g}'.format(compensate_z) if dirs_changed[2] and compensate_z != 0 else '',
+                ' xoffset+={:g}'.format(compensate_x) if dirs_changed[0] and compensate_x != 0 else '',
+                ' yoffset+={:g}'.format(compensate_y) if dirs_changed[1] and compensate_y != 0 else '',
+                ' zoffset+={:g}'.format(compensate_z) if dirs_changed[2] and compensate_z != 0 else '',
             ))
             break
 
@@ -435,22 +444,23 @@ def process_G1_movement (line, command_override):
         line = line + " Q" + Afactor.group(1) + " "
     if output_relative_movement==False:
         if use_x==1:
-            line = line + " X" + "{:g}".format(round((last_x + args.xoffset + compensate_x), args.precision))
+            line = line + " X" + "{:g}".format(round((last_x + args.xoffset + coffset_x), args.precision))
         if use_y==1:
-            line = line + " Y" + "{:g}".format(round((last_y + args.yoffset + compensate_y), args.precision))
+            line = line + " Y" + "{:g}".format(round((last_y + args.yoffset + coffset_y), args.precision))
         if use_z==1:
-            line = line + " Z" + "{:g}".format(round((last_z + args.zoffset + compensate_z), args.precision))
+            line = line + " Z" + "{:g}".format(round((last_z + args.zoffset + coffset_z), args.precision))
     else:
+        # TODO find a way to test relative compensation
         if use_x==1:
             line = line + " X" + "{:g}".format(round((delta_x + args.xoffset + compensate_x), args.precision))
             args.xoffset = 0
             compensate_x = 0
         if use_y==1:
-            line = line + " Y" + "{:g}".format(round((delta_y + args.yoffset + compensate_y), args.precision))
+            line = line + " Y" + "{:g}".format(round((delta_y + args.yoffset + compensate_x), args.precision))
             args.yoffset = 0
             compensate_y = 0
         if use_z==1:
-            line = line + " Z" + "{:g}".format(round((delta_z + args.zoffset + compensate_z), args.precision))
+            line = line + " Z" + "{:g}".format(round((delta_z + args.zoffset + compensate_x), args.precision))
             args.zoffset = 0
             compensate_z = 0
     if use_i==1:
