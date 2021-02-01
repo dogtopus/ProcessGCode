@@ -456,11 +456,11 @@ def process_G1_movement (line, command_override):
             args.xoffset = 0
             compensate_x = 0
         if use_y==1:
-            line = line + " Y" + "{:g}".format(round((delta_y + args.yoffset + compensate_x), args.precision))
+            line = line + " Y" + "{:g}".format(round((delta_y + args.yoffset + compensate_y), args.precision))
             args.yoffset = 0
             compensate_y = 0
         if use_z==1:
-            line = line + " Z" + "{:g}".format(round((delta_z + args.zoffset + compensate_x), args.precision))
+            line = line + " Z" + "{:g}".format(round((delta_z + args.zoffset + compensate_z), args.precision))
             args.zoffset = 0
             compensate_z = 0
     if use_i==1:
