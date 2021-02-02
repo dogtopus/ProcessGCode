@@ -134,7 +134,11 @@ last_z = 0
 dir_x = 0
 dir_y = 0
 dir_z = 0
+# Keep track of previous coordinates
+prev_x, prev_y, prev_z = 0, 0, 0
+# Compensation value (+ or -)
 compensate_x, compensate_y, compensate_z = 0, 0, 0
+# Compensation offset relative to current absolute coordinate
 coffset_x, coffset_y, coffset_z = 0, 0, 0
 peak_x = 0
 peak_y = 0
@@ -266,7 +270,7 @@ def switchOutput (original, cause):
 
 def process_G1_movement (line, command_override):
     global delta_x, delta_y, delta_e, delta_z, delta_f,peak_x,peak_y,peak_z, min_x, min_y,last_path_name
-    global last_x, last_y, last_e, last_z, last_f, total_e, retracted 
+    global last_x, last_y, last_e, last_z, last_f, total_e, retracted, prev_x, prev_y, prev_z
     global args ,endquote,relative_movement,output_relative_movement,output_relative_extrusion,relative_extrusion,total_time
     global dir_x, dir_y, dir_z, compensate_x, compensate_y, compensate_z, coffset_x, coffset_y, coffset_z
     comment_remover = re.search("^(.*);(.*$)",line)
@@ -434,7 +438,28 @@ def process_G1_movement (line, command_override):
 # rebuild the G1 command
     if use_x==0 and use_y==0 and use_e==0 and use_z==0 and use_f==0:
         return conditional_comment (comment)
-    if command_override: 
+    if compensation_updated and any((use_x, use_y, use_z)):
+        line += command_override if command_override else "G1"
+        if output_relative_movement:
+            if use_x == 1:
+                line = line + " X" + "{:g}".format(round((compensate_x), args.precision))
+                compensate_x = 0
+            if use_y == 1:
+                line = line + " Y" + "{:g}".format(round((compensate_y), args.precision))
+                compensate_y = 0
+            if use_z == 1:
+                line = line + " Z" + "{:g}".format(round((compensate_z), args.precision))
+                compensate_z = 0
+        else:
+            if use_x == 1:
+                line = line + " X" + "{:g}".format(round((prev_x + args.xoffset + coffset_x), args.precision))
+            if use_y == 1:
+                line = line + " Y" + "{:g}".format(round((prev_y + args.yoffset + coffset_y), args.precision))
+            if use_z == 1:
+                line = line + " Z" + "{:g}".format(round((prev_z + args.zoffset + coffset_z), args.precision))
+        line += '\n'
+
+    if command_override:
         line += command_override
     else:
         line += "G1" 
@@ -450,19 +475,15 @@ def process_G1_movement (line, command_override):
         if use_z==1:
             line = line + " Z" + "{:g}".format(round((last_z + args.zoffset + coffset_z), args.precision))
     else:
-        # TODO find a way to test relative compensation
         if use_x==1:
-            line = line + " X" + "{:g}".format(round((delta_x + args.xoffset + compensate_x), args.precision))
+            line = line + " X" + "{:g}".format(round((delta_x + args.xoffset), args.precision))
             args.xoffset = 0
-            compensate_x = 0
         if use_y==1:
-            line = line + " Y" + "{:g}".format(round((delta_y + args.yoffset + compensate_y), args.precision))
+            line = line + " Y" + "{:g}".format(round((delta_y + args.yoffset), args.precision))
             args.yoffset = 0
-            compensate_y = 0
         if use_z==1:
-            line = line + " Z" + "{:g}".format(round((delta_z + args.zoffset + compensate_z), args.precision))
+            line = line + " Z" + "{:g}".format(round((delta_z + args.zoffset), args.precision))
             args.zoffset = 0
-            compensate_z = 0
     if use_i==1:
         line = line + "I" + icoordinate
     if use_j==1:
@@ -547,6 +568,7 @@ def process_G1_movement (line, command_override):
             total_time = total_time + 0.5      # rough guess on time to retract and prime
 
     line = line + conditional_comment (comment)
+    prev_x, prev_y, prev_z = last_x, last_y, last_z
     return line #+ "\n"
     
     
